@@ -101,3 +101,118 @@ def summary_cleaner (text):
 cleaned_summary = []
 for t in data['Summary']:
     cleaned_summary.append(summary_cleaner(t))
+    
+data['cleaned_text']=cleaned_text
+data['cleaned_summary']=cleaned_summary
+    
+data['cleaned_summary'].replace('', np.nan, inplace=True)
+data.dropna(axis=0,inplace=True)
+
+data['cleaned_summary'] = data['cleaned_summary'].apply(lambda x : '_START_ '+ x + ' _END_')
+
+max_text_len=30
+max_summary_len=8
+
+cleaned_text =np.array(data['cleaned_text'])
+cleaned_summary=np.array(data['cleaned_summary'])
+
+
+short_text=[]
+short_summary=[]
+
+for i in range(len(cleaned_text)):
+    if(len(cleaned_summary[i].split())<=max_summary_len and len(cleaned_text[i].split())<=max_text_len):
+        short_text.append(cleaned_text[i])
+        short_summary.append(cleaned_summary[i])
+        
+df=pd.DataFrame({'text':short_text,'summary':short_summary})
+
+df['summary'] = df['summary'].apply(lambda x : 'start '+ x + ' end')
+
+
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test=train_test_split(np.array(df['text']),np.array(df['summary']),test_size=0.1,random_state=0,shuffle=True)
+
+from keras.preprocessing.text import Tokenizer 
+from keras.preprocessing.sequence import pad_sequences
+
+
+x_tokenizer = Tokenizer() 
+x_tokenizer.fit_on_texts(list(x_train))
+
+thresh=4
+
+cnt=0
+tot_cnt=0
+freq=0
+tot_freq=0
+
+for key,value in x_tokenizer.word_counts.items():
+    tot_cnt=tot_cnt+1
+    tot_freq=tot_freq+value
+    if(value<thresh):
+        cnt=cnt+1
+        freq=freq+value
+
+x_tokenizer = Tokenizer(num_words=tot_cnt-cnt) 
+x_tokenizer.fit_on_texts(list(x_train))
+
+x_train_seq    =   x_tokenizer.texts_to_sequences(x_train) 
+x_test_seq   =   x_tokenizer.texts_to_sequences(x_test)
+
+x_train    =   pad_sequences(x_train_seq,  maxlen=max_text_len, padding='post')
+x_test   =   pad_sequences(x_test_seq, maxlen=max_text_len, padding='post')
+
+x_voc   =  x_tokenizer.num_words + 1
+
+y_tokenizer = Tokenizer()   
+y_tokenizer.fit_on_texts(list(y_train))
+thresh=6
+
+cnt=0
+tot_cnt=0
+freq=0
+tot_freq=0
+
+for key,value in y_tokenizer.word_counts.items():
+    tot_cnt=tot_cnt+1
+    tot_freq=tot_freq+value
+    if(value<thresh):
+        cnt=cnt+1
+        freq=freq+value
+
+y_tokenizer = Tokenizer(num_words=tot_cnt-cnt) 
+y_tokenizer.fit_on_texts(list(y_train))
+
+y_train_seq    =   y_tokenizer.texts_to_sequences(y_train) 
+y_test_seq   =   y_tokenizer.texts_to_sequences(y_test) 
+
+y_train    =   pad_sequences(y_train_seq, maxlen=max_summary_len, padding='post')
+y_test   =   pad_sequences(y_test_seq, maxlen=max_summary_len, padding='post')
+
+y_voc  =   y_tokenizer.num_words +1
+
+st_en_del=[]
+for i in range(len(y_train)):
+    cnt=0
+    for j in y_train[i]:
+        if j!=0:
+            cnt=cnt+1
+    if(cnt==2):
+        st_en_del.append(i)
+
+x_train=np.delete(x_train,st_en_del, axis=0)
+y_train=np.delete(y_train,st_en_del, axis=0)
+
+st_en_del=[]
+for i in range(len(y_test)):
+    cnt=0
+    for j in y_test[i]:
+        if j!=0:
+            cnt=cnt+1
+    if(cnt==2):
+        st_en_del.append(i)
+x_test=np.delete(x_test,st_en_del, axis=0)
+y_test=np.delete(y_test,st_en_del, axis=0)
+
+
